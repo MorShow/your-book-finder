@@ -10,13 +10,16 @@ from typing import Optional
 
 class GutenberqSpider(scrapy.Spider):
     name = 'gutenberq'
-    start_urls = ['https://www.gutenberg.org/ebooks/1']
     pages_count = None
+
+    def __init__(self, pages_ratio=0.1, **kwargs):
+        self.pages_ratio = float(pages_ratio)
+        self.start_urls = ['https://www.gutenberg.org/ebooks/1']
+        super().__init__(**kwargs)
 
     def parse(self, response: Response) -> Request:
         pages_info = response.css('li.breadcrumb.next>a>span::text').get()
-        pages_count = int(pages_info.replace(',', '').split()[0])
-        pages_count = 100
+        pages_count = round(int(pages_info.replace(',', '').split()[0]) * self.pages_ratio)
 
         for i in range(1, pages_count + 1):
             yield Request(f'https://www.gutenberg.org/ebooks/{i}', callback=self.parse_book_info)
@@ -74,6 +77,7 @@ class GutenberqSpider(scrapy.Spider):
             metadata_lines = book_content[:metadata_end_index].splitlines()
 
             language = next((line for line in metadata_lines if line.startswith('Language')), None)
+            language = language.split(':')[1]
             book_text = book_content[book_content.find('\n', metadata_end_index):text_end_index].strip()
 
             yield {
