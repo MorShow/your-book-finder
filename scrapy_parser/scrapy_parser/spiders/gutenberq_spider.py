@@ -79,6 +79,7 @@ class GutenberqSpider(scrapy.Spider):
             language = next((line for line in metadata_lines if line.startswith('Language')), None)
             language = language.split(':')[1]
             book_text = book_content[book_content.find('\n', metadata_end_index):text_end_index].strip()
+            book_text = book_text.replace('\n', ' ')
 
             yield {
                 'title': title,
