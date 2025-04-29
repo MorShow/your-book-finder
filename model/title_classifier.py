@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 import torch
 import nltk
@@ -7,27 +9,35 @@ from transformers import pipeline
 
 
 class TitleClassifier:
-    def __init__(self, titles_list, batch_size=20):
+    def __init__(self, titles_list='full', batch_size=20):
         self._model_name = 'facebook/bart-large-mnli'
         self._device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self._batch_size = batch_size
         self._titles_list = titles_list
         self._data = None
-        self._model = self.load_model(self.device)
+        self._model = self.load_model()
 
     @property
     def data(self):
         return self._data
 
+    @property
+    def model_name(self):
+        return self._model_name
+
+    @property
+    def device(self):
+        return self._device
+
     @data.setter
     def load_data(self, path, nrows=None):
         self._data = pd.read_csv(path, nrows=nrows)
 
-    def load_model(self, device):
+    def load_model(self):
         model = pipeline(
             'zero-shot-classification',
             model=self.model_name,
-            device=device
+            device=self.device
         )
 
         return model
@@ -63,6 +73,10 @@ class TitleClassifier:
         return inferences_means
 
     def get_titles(self, path_to_data, save_path, num_of_books=None, num_of_batches=None):
+        if save_path and os.path.exists(save_path):
+            self.load_data(save_path)
+            return self.data
+
         # r"../data/raw/gutenberq_books.csv" - common pipeline
         self.load_data(path_to_data, num_of_books)
 
