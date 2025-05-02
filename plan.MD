@@ -1,9 +1,15 @@
 # Project pipeline
 
 ### Constants
-- pages_ratio:
+- PAGES_RATIO:
   - *project developing: 0.0013 (approx. 100 books, 45Mb)*
   - *testing, integration and deployment: 0.3 (approx. 22500 books, 10Gb)*
+- MODEL_TITLES_SIZE:
+  - *project developing: 'full' (all the titles from the dataset)*
+  - *testing, integration and deployment: 'small' (some limited predifined list of titles)*
+  - *fast checks: 'tiny' (5 samples)*
+- MODEL_TITLES:
+  - *the lists of titles corresponding to the previous set of constants* 
 
 ## 1. Data scraping:
 - Source: https://www.gutenberg.org/

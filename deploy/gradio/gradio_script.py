@@ -1,17 +1,28 @@
 from model import TitleClassifier
-from constants import MODEL_TITLES_SPACE_SIZE_CI
+from constants import MODEL_TITLES_SIZE_FAST_TEST, MODEL_TITLES_SIZE_CI
 
 import gradio as gr
 
 
 def get_title(path_to_data, save_path, num_of_books=None, num_of_batches=None):
-    model = TitleClassifier(titles_list=MODEL_TITLES_SPACE_SIZE_CI)
-    print(model)
-    print(type(model))
-    inference_df = model.get_titles(path_to_data, save_path, num_of_books, num_of_batches)
-    print(inference_df)
+    model = TitleClassifier(titles_list_arg=MODEL_TITLES_SIZE_FAST_TEST)
 
-    return inference_df
+    inference_df = model.get_titles(path_to_data, save_path, int(num_of_books), num_of_batches)
+    return_string = ''
+    counter = 1
+
+    # TODO: works for a very long time (infinite loop???) for num_of_books > 1
+    for item in inference_df.iterrows():
+        scores_dict = eval(item[1]['scores'])
+        labels = list(scores_dict.keys())
+        values = list(scores_dict.values())
+        max_likelihood = max(values)
+        max_likelihood_label = labels[values.index(max_likelihood)]
+
+        return_string += f'{counter}. book: {max_likelihood_label}, {round(max_likelihood * 100, 2)}%\n'
+        counter += 1
+
+    return return_string
 
 
 def main():
