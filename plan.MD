@@ -10,6 +10,9 @@
   - *fast checks: 'tiny' (5 samples)*
 - MODEL_TITLES:
   - *the lists of titles corresponding to the previous set of constants* 
+- NUM_OF_BATCHES:
+  - *project developing: None (uses all the batches created after sentence tokenization)*
+  - *testing and fast checks: 5*
 
 ## 1. Data scraping:
 - Source: https://www.gutenberg.org/

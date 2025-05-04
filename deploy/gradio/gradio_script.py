@@ -1,5 +1,7 @@
 from model import TitleClassifier
-from constants import MODEL_TITLES_SIZE_FAST_TEST, MODEL_TITLES_SIZE_CI
+from constants import MODEL_TITLES_SIZE_FAST_TEST, MODEL_TITLES_SIZE_CI, NUM_OF_BATCHES_CI
+
+from functools import partial
 
 import gradio as gr
 
@@ -11,9 +13,11 @@ def get_title(path_to_data, save_path, num_of_books=None, num_of_batches=None):
     return_string = ''
     counter = 1
 
-    # TODO: works for a very long time (infinite loop???) for num_of_books > 1
     for item in inference_df.iterrows():
-        scores_dict = eval(item[1]['scores'])
+        print(item[1]['scores'])
+        scores_dict = item[1]['scores']
+        if isinstance(item[1]['scores'], str):
+            scores_dict = eval(item[1]['scores'])
         labels = list(scores_dict.keys())
         values = list(scores_dict.values())
         max_likelihood = max(values)
@@ -23,6 +27,9 @@ def get_title(path_to_data, save_path, num_of_books=None, num_of_batches=None):
         counter += 1
 
     return return_string
+
+
+wrapper = partial(get_title, num_of_batches=NUM_OF_BATCHES_CI)
 
 
 def main():
@@ -44,7 +51,7 @@ def main():
                                             '(The first N books will be found)')
         with gr.Row() as row:
             submit_button = gr.Button('Submit')
-            submit_button.click(get_title, [path_to_data, save_path, num_of_books], answer)
+            submit_button.click(wrapper, [path_to_data, save_path, num_of_books], answer)
 
     iface.launch(share=True)
 

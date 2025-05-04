@@ -2,12 +2,19 @@ from constants import MODEL_TITLES_SMALL, MODEL_TITLES_TINY
 
 import os
 from pathlib import Path
+import logging
 
 import pandas as pd
 import torch
 import nltk
 import numpy as np
 from transformers import pipeline
+
+project_root = Path(__file__).resolve().parent.parent
+location = project_root / 'logs' / 'title_classifier.log'
+
+logging.basicConfig(filename=location, encoding='utf-8', level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 class TitleClassifier:
@@ -52,7 +59,8 @@ class TitleClassifier:
         model = pipeline(
             'zero-shot-classification',
             model=self.model_name,
-            device=self.device
+            device=self.device,
+            logger=logger,
         )
 
         return model
@@ -62,24 +70,29 @@ class TitleClassifier:
         text_sentences = nltk.sent_tokenize(text)
 
         text_batches = []
-        count = 0
+        batch_count = 0
 
         for index in range(0, len(text_sentences), self.batch_size):
             batch = " ".join(text_sentences[index:index + self.batch_size])
             text_batches.append(batch)
-            count += 1
-            if num_of_batches and count >= num_of_batches:
+            batch_count += 1
+            if num_of_batches and batch_count >= num_of_batches:
                 break
 
+        logging.info(f"The model has just started classifying ({len(text_batches)} batch(es))")
         output = self.model(
             text_batches,
-            self.titles_list
+            self.titles_list,
         )
 
         title_inferences = {}
 
+        inference_count = 0
+        output_size = len(output)
         for item in output:
             for label, score in zip(item['labels'], item['scores']):
+                inference_count += 1
+                logger.info(f'{label}: {output_size - score}. {output_size - inference_count} inferences left')
                 if label not in title_inferences:
                     title_inferences[label] = []
                 title_inferences[label].append(score)

@@ -1,7 +1,6 @@
 PAGES_RATIO_DEV = 0.0013
 PAGES_RATIO_CI = 0.3
 
-
 MODEL_TITLES_SIZE_DEV = 'full'
 MODEL_TITLES_SIZE_CI = 'small'
 MODEL_TITLES_SIZE_FAST_TEST = 'tiny'
@@ -44,3 +43,6 @@ MODEL_TITLES_SMALL = ['The 32nd Mersenne Prime', 'Thuvia, Maid of Mars', 'The wa
                       'The Declaration of Independence of the United States of America', 'Moby-Dick; or, The Whale',
                       'The 1990 CIA World Factbook']
 MODEL_TITLES_TINY = MODEL_TITLES_SMALL[:5]
+
+NUM_OF_BATCHES_DEV = None
+NUM_OF_BATCHES_CI = 5
