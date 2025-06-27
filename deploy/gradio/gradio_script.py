@@ -44,7 +44,7 @@ def main():
             description = gr.Textbox(label='Description')
             language = gr.Textbox(label='The language of the book in which it was written')
             year = gr.Textbox(label='The year the book was written '
-                                    '(Probably, you don`t have a clue so you can type "None")')
+                                    '(Probably, you do not have even a clue so you can just type "None")')
             path_to_data = gr.Textbox(label='Type the path to the books descriptions titles of which you want to get')
             save_path = gr.Textbox(label='Where the result should be saved?')
             num_of_books = gr.Textbox(label='How many books from the given set do you want to find? '
