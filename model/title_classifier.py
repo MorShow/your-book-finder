@@ -8,6 +8,8 @@ import pandas as pd
 import torch
 import nltk
 import numpy as np
+
+os.environ["TRANSFORMERS_NO_TF"] = "1"
 from transformers import pipeline
 
 project_root = Path(__file__).resolve().parent.parent
