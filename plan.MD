@@ -7,7 +7,7 @@
 - MODEL_TITLES_SIZE:
   - *project developing: 'full' (all the titles from the dataset)*
   - *testing, integration and deployment: 'small' (some limited predifined list of titles)*
-  - *fast checks: 'tiny' (5 samples)*
+  - *fast checks: 'tiny' (five samples)*
 - MODEL_TITLES:
   - *the lists of titles corresponding to the previous set of constants* 
 - NUM_OF_BATCHES:
@@ -28,7 +28,13 @@
 ...
 
 ## 3. Model architecture designing:
-...
+- TODO: Pipeline creation
+- 1) Embedding: embed the info about the book and the text
+  2) Create the clusters based on the embedding vectors (the space of books` descriptions)
+  3) Clusterization: train the HDBSCAN model, then the query will be transformed to vector,
+  this vector should be assigned to some cluster later
+  4) Inferring: ROBERTA (or another Transformer model) is used for choosing the best point matching the user`s
+     query inside the narrowed batch of points
 
 ## 4. Model training:
 ...
