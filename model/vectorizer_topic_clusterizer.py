@@ -99,7 +99,7 @@ class TopicVectorizerClusterizer:
         }, index=vectors_info.index)
         self.vectors_info = result
 
-    def predict(self, title: str, decsription: str) -> Tuple[pd.DataFrame, int]:
+    def predict(self, title: str, decsription: str) -> pd.DataFrame:
         vector = self.vectorize(pd.DataFrame({
             'title': [title],
             'info': decsription
@@ -114,4 +114,9 @@ class TopicVectorizerClusterizer:
             clusters[self.vectors_info.iloc[index, 1]] = (
                     clusters.get(self.vectors_info.iloc[index, 1], 0) + 1)
 
-        return vector, max(clusters, key=clusters.get)
+        result = pd.DataFrame({
+            "vector": vector["vector"].values,
+            "cluster": max(clusters, key=clusters.get)
+        }, index=vector.index)
+
+        return result
