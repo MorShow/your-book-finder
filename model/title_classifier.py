@@ -110,7 +110,7 @@ class TitleClassifier:
         if self._titles_list_arg == 'full':
             self.titles_list = list(self.data.loc[:, 'title'])
 
-        # r"../data/raw/gutenberq_books.csv" - common pipeline
+        # r"../data/raw/gutenberq_books_tiny.csv" - common pipeline
         self._data = pd.read_csv(path_to_data, nrows=num_of_books)
         print(self._data)
 

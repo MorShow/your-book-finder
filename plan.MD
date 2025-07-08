@@ -3,7 +3,8 @@
 ### Constants
 - PAGES_RATIO:
   - *project developing: 0.0013 (approx. 100 books, 45Mb)*
-  - *testing, integration and deployment: 0.3 (approx. 22500 books, 10Gb)*
+  - *CI/CD: 0.015 (approx. 1125 books, 500Mb)*
+  - *deployment: 0.3 (approx. 22500 books, 10Gb)*
 - MODEL_TITLES_SIZE:
   - *project developing: 'full' (all the titles from the dataset)*
   - *testing, integration and deployment: 'small' (some limited predifined list of titles)*
@@ -36,11 +37,16 @@
   4) Inferring: ROBERTA (or another Transformer model) is used for choosing the best point matching the user`s
      query inside the narrowed batch of points
 
-## 4. Model training:
+### 3.1 Embeddings + Clusterization model:
+- Embeddings creation - Sentence Transformer (SBERT)
+- Clusterization via HDBSCAN (classic DBSCAN is poor for the values of the embedding vectors)
+- Visualization using t-SNE in 2D space to highlight the quality of the given clusters
+
+## 4. Model training (???):
 ...
 
-## 5. Validation:
-...
+## 5. Parallelization, CI/CD, and Versioning:
+- Stack: scrapy-redis, Airflow, and MLFlow
 
 ## 6. API creation:
 ...
