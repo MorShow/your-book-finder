@@ -4,8 +4,8 @@ import logging
 from pathlib import Path
 from typing import Optional, Tuple, List
 
+from sklearn.cluster import HDBSCAN
 from sentence_transformers import SentenceTransformer
-from sklearn.cluster import DBSCAN, HDBSCAN
 
 project_root = Path(__file__).resolve().parent.parent
 location = project_root / 'logs' / 'title_classifier.log'
@@ -16,20 +16,15 @@ logger = logging.getLogger(__name__)
 
 class TopicVectorizerClusterizer:
     def __init__(self,
-                 data_path: str,
                  min_cluster_size: int,
                  cluster_selection_epsilon: float,
                  k_neighbours_inference: int = 5) -> None:
         self._vector_model = SentenceTransformer("all-MiniLM-L6-v2")
         self._cluster_model = HDBSCAN(min_cluster_size=min_cluster_size,
                                       cluster_selection_epsilon=cluster_selection_epsilon)
-        # self._cluster_model = DBSCAN(min_samples=min_cluster_size,
-        #                              eps=cluster_selection_epsilon)
         self._k_neighbours_inference = k_neighbours_inference
-        self._data_path = data_path
-        self._data = pd.read_csv(self.data_path)
-        self._vectors_info = None
-        self._vectors_text = None
+        self._data = None
+        self._vectors = None
         self._result = None
         self._titles_processed = []
 
@@ -38,28 +33,8 @@ class TopicVectorizerClusterizer:
         return self._vector_model
 
     @property
-    def data_path(self) -> str:
-        return self._data_path
-
-    @property
     def data(self) -> pd.DataFrame:
         return self._data
-
-    @property
-    def vectors_info(self) -> pd.DataFrame:
-        return self._vectors_info
-
-    @vectors_info.setter
-    def vectors_info(self, vectors_info: pd.DataFrame) -> None:
-        self._vectors_info = vectors_info
-
-    @property
-    def vectors_text(self) -> pd.DataFrame:
-        return self._vectors_text
-
-    @vectors_text.setter
-    def vectors_text(self, vectors_text: pd.DataFrame) -> None:
-        self._vectors_text = vectors_text
 
     @property
     def titles_processed(self) -> List[str]:
@@ -82,41 +57,47 @@ class TopicVectorizerClusterizer:
         vector, cluster = self._result.loc[title, :].tolist()
         return vector, cluster
 
-    def vectorize(self, table: pd.DataFrame, text_column: str) -> pd.DataFrame:
-        vectors = self._vector_model.encode(table[text_column])
-        return pd.DataFrame({
-            'vector': list(vectors),
-        }, index=table['title'])
-
-    def process_vector_databases(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        return self.vectorize(self.data, 'info'), self.vectorize(self.data, 'text')
+    def vectorize(self, input_information: pd.DataFrame | str, text_column: Optional[str] = None) -> np.ndarray:
+        if isinstance(text_column, str):
+            return self._vector_model.encode(input_information[text_column])
+        return self._vector_model.encode(input_information)
 
     def clusterize_descriptions(self) -> None:
-        vectors_info, _ = self.process_vector_databases()
+        vectors = self.vectorize(self.data, 'info')
         result = pd.DataFrame({
-            'vector': vectors_info['vector'],
-            'cluster': self._cluster_model.fit_predict(vectors_info['vector'].tolist()).tolist()
-        }, index=vectors_info.index)
-        self.vectors_info = result
+            'vector': list(vectors),
+            'cluster': self._cluster_model.fit_predict(vectors.tolist()).tolist()
+        }, index=self._data.index)
+        self._vectors = result
 
-    def predict(self, title: str, decsription: str) -> pd.DataFrame:
-        vector = self.vectorize(pd.DataFrame({
-            'title': [title],
-            'info': decsription
-        }), 'info')
+    def fit_transform(self, dataset: pd.DataFrame) -> pd.DataFrame:
+        self._data = dataset
+        self.clusterize_descriptions()
+        return self._vectors
 
-        vectors_space = list(enumerate(self.vectors_info['vector'].values))
-        vectors_space.sort(key=lambda x: np.linalg.norm(x[1] - vector['vector'].values[0]))
+    def predict(self, decsription: str) -> pd.DataFrame:
+        vector = self.vectorize(decsription)
+        vectors_space = list(enumerate(self._vectors['vector'].values))
+        vectors_space.sort(key=lambda x: np.linalg.norm(x[1] - vector['vector']))
         vectors_space = vectors_space[:self._k_neighbours_inference]
         clusters = dict()
 
         for index, _ in vectors_space:
-            clusters[self.vectors_info.iloc[index, 1]] = (
-                    clusters.get(self.vectors_info.iloc[index, 1], 0) + 1)
+            clusters[self._vectors.iloc[index, 1]] = (
+                    clusters.get(self._vectors.iloc[index, 1], 0) + 1)
 
         result = pd.DataFrame({
-            "vector": vector["vector"].values,
+            "vector": vector,
             "cluster": max(clusters, key=clusters.get)
-        }, index=vector.index)
+        }, index=vector)
 
         return result
+
+
+if __name__ == '__main__':
+    tvc = TopicVectorizerClusterizer(5, 5, k_neighbours_inference=4)
+    train_data = pd.read_csv(
+        r'C:\Users\aleks\OneDrive\Desktop\Studying\your-book-finder\data\raw\gutenberq_books_tiny.csv')
+    res = tvc.fit_transform(train_data)
+    print(res['vector'])
+    print(res['cluster'])

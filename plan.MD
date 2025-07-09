@@ -33,13 +33,15 @@
 - 1) Embedding: embed the info about the book and the text
   2) Create the clusters based on the embedding vectors (the space of books` descriptions)
   3) Clusterization: train the HDBSCAN model, then the query will be transformed to vector,
-  this vector should be assigned to some cluster later
+  this vector should be assigned to some cluster later.
+     Yes, the Qdrant vector Database 
+  could be used for this task (but I want my own implementation).
   4) Inferring: ROBERTA (or another Transformer model) is used for choosing the best point matching the user`s
      query inside the narrowed batch of points
 
-### 3.1 Embeddings + Clusterization model:
+### 3.1 Embeddings + Clustering model:
 - Embeddings creation - Sentence Transformer (SBERT)
-- Clusterization via HDBSCAN (classic DBSCAN is poor for the values of the embedding vectors)
+- Clustering via HDBSCAN (classic DBSCAN is poor for the values of the embedding vectors)
 - Visualization using t-SNE in 2D space to highlight the quality of the given clusters
 
 ## 4. Model training (???):
@@ -47,6 +49,7 @@
 
 ## 5. Parallelization, CI/CD, and Versioning:
 - Stack: scrapy-redis, Airflow, and MLFlow
+- Clustering: the Silhouette score as the main metric
 
 ## 6. API creation:
 ...
