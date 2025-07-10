@@ -49,7 +49,7 @@
 
 ## 5. Parallelization, CI/CD, and Versioning:
 - Stack: scrapy-redis, Airflow, and MLFlow
-- Clustering: the Silhouette score as the main metric
+- Clustering: the Silhouette score as the main metric (maximizing via Optuna search)
 
 ## 6. API creation:
 ...
