@@ -4,11 +4,14 @@ import logging
 from pathlib import Path
 from typing import Optional, Tuple, List
 
+from umap import UMAP
 from sklearn.cluster import HDBSCAN
 from sentence_transformers import SentenceTransformer
 
 project_root = Path(__file__).resolve().parent.parent
 location = project_root / 'logs' / 'title_classifier.log'
+vector_model_path = next((Path(__file__).resolve().parent / 'sbert_vectorizer' /
+                         'models--sentence-transformers--all-MiniLM-L6-v2' / 'snapshots').iterdir())
 
 logging.basicConfig(filename=location, encoding='utf-8', level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -19,9 +22,11 @@ class TopicVectorizerClusterizer:
                  min_cluster_size: int,
                  cluster_selection_epsilon: float,
                  k_neighbours_inference: int = 5) -> None:
-        self._vector_model = SentenceTransformer("all-MiniLM-L6-v2")
+        self._vector_model = SentenceTransformer(str(vector_model_path))
         self._cluster_model = HDBSCAN(min_cluster_size=min_cluster_size,
                                       cluster_selection_epsilon=cluster_selection_epsilon)
+        self._dim_reducer = UMAP(n_components=15, random_state=42)
+
         self._k_neighbours_inference = k_neighbours_inference
         self._data = None
         self._vectors = None
@@ -63,11 +68,11 @@ class TopicVectorizerClusterizer:
         return self._vector_model.encode(input_information)
 
     def clusterize_descriptions(self) -> None:
-        vectors = self.vectorize(self.data, 'info')
+        vectors = self._dim_reducer.fit_transform(self.vectorize(self.data, 'info'))
         result = pd.DataFrame({
             'vector': list(vectors),
             'cluster': self._cluster_model.fit_predict(vectors.tolist()).tolist()
-        }, index=self._data.index)
+        }, index=self._data['title'] if 'title' in self._data.columns else self._data.index)
         self._vectors = result
 
     def fit_transform(self, dataset: pd.DataFrame) -> pd.DataFrame:
@@ -75,10 +80,11 @@ class TopicVectorizerClusterizer:
         self.clusterize_descriptions()
         return self._vectors
 
-    def predict(self, decsription: str) -> pd.DataFrame:
+    def predict(self, title: str, decsription: str) -> pd.DataFrame:
         vector = self.vectorize(decsription)
+        vector = self._dim_reducer.transform(vector.reshape(1, -1))
         vectors_space = list(enumerate(self._vectors['vector'].values))
-        vectors_space.sort(key=lambda x: np.linalg.norm(x[1] - vector['vector']))
+        vectors_space.sort(key=lambda x: np.linalg.norm(x[1] - vector))
         vectors_space = vectors_space[:self._k_neighbours_inference]
         clusters = dict()
 
@@ -87,17 +93,8 @@ class TopicVectorizerClusterizer:
                     clusters.get(self._vectors.iloc[index, 1], 0) + 1)
 
         result = pd.DataFrame({
-            "vector": vector,
-            "cluster": max(clusters, key=clusters.get)
-        }, index=vector)
+            "vector": [vector.flatten()],
+            "cluster": [max(clusters, key=clusters.get)]
+        }, index=[title])
 
         return result
-
-
-if __name__ == '__main__':
-    tvc = TopicVectorizerClusterizer(5, 5, k_neighbours_inference=4)
-    train_data = pd.read_csv(
-        r'C:\Users\aleks\OneDrive\Desktop\Studying\your-book-finder\data\raw\gutenberq_books_tiny.csv')
-    res = tvc.fit_transform(train_data)
-    print(res['vector'])
-    print(res['cluster'])
