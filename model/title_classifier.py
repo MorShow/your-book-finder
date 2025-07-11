@@ -10,7 +10,7 @@ import nltk
 import numpy as np
 
 os.environ["TRANSFORMERS_NO_TF"] = "1"
-from transformers import pipeline
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 project_root = Path(__file__).resolve().parent.parent
 location = project_root / 'logs' / 'title_classifier.log'
@@ -21,13 +21,13 @@ logger = logging.getLogger(__name__)
 
 class TitleClassifier:
     def __init__(self, titles_list_arg='full', batch_size=20):
-        self._model_name = 'facebook/bart-large-mnli'
+        self._model_name = 'cross-encoder/ms-marco-MiniLM-L-12-v2'
         self._device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self._batch_size = batch_size
         self._titles_list_arg = titles_list_arg
         self._titles_list = MODEL_TITLES_SMALL if titles_list_arg == 'small' else MODEL_TITLES_TINY
         self._data = None
-        self._model = self.load_model()
+        self._tokenizer, self._model = self.load_model()
 
     @property
     def titles_list(self):
@@ -58,17 +58,21 @@ class TitleClassifier:
         return self._batch_size
 
     def load_model(self):
-        model = pipeline(
-            'zero-shot-classification',
-            model=self.model_name,
-            device=self.device,
-            logger=logger,
-        )
+        tokenizer = AutoTokenizer.from_pretrained(self._model_name)
+        model = AutoModelForSequenceClassification.from_pretrained(self._model_name)
+        return tokenizer, model
 
-        return model
+    def load_data(self, data: pd.DataFrame, num_of_books: int = None) -> None:
+        # r"../data/raw/gutenberq_books_tiny.csv" - common pipeline
+        self._data = data
 
-    def title_inference(self, text, num_of_batches=None):
-        text_sentences = nltk.sent_tokenize(text)
+        if self._titles_list_arg == 'full':
+            self.titles_list = list(self.data.loc[:, 'title'])
+
+    # TODO: refactor the method
+    def title_inference(self, text: str, cluster: int, num_of_batches=None):
+        text_sentences = self._tokenizer.tokenize(text)  # BPE: ['Hello', 'World', 'I', 'm', ..., '##er', ...]
+        cluster_data = self.data[self.data['cluster'] == cluster]
 
         text_batches = []
         batch_count = 0
@@ -103,16 +107,6 @@ class TitleClassifier:
         return inferences_means
 
     def get_titles(self, path_to_data, save_path, num_of_books=None, num_of_batches=None):
-        if save_path and os.path.exists(save_path):
-            self._data = pd.read_csv(save_path, nrows=num_of_books)
-            return self.data
-        if self._titles_list_arg == 'full':
-            self.titles_list = list(self.data.loc[:, 'title'])
-
-        # r"../data/raw/gutenberq_books_tiny.csv" - common pipeline
-        self._data = pd.read_csv(path_to_data, nrows=num_of_books)
-        print(self._data)
-
         inferences = self.data.loc[:, 'text'].apply(lambda x: self.title_inference(x, num_of_batches))
         inferences = pd.DataFrame.from_dict(inferences).rename(columns={'text': 'scores'})
         save_df = pd.DataFrame(self.data.loc[:, ['title', 'author']])
