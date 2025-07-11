@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import logging
 from pathlib import Path
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple
 
 from umap import UMAP
 from sklearn.cluster import HDBSCAN
@@ -37,8 +37,7 @@ class TopicVectorizerClusterizer:
         self._k_neighbours_inference = k_neighbours_inference
         self._data = None
         self._vectors = None
-        self._result = None
-        self._titles_processed = []
+        self._descriptions_stack = []
 
     @property
     def vector_model(self) -> SentenceTransformer:
@@ -49,25 +48,21 @@ class TopicVectorizerClusterizer:
         return self._data
 
     @property
-    def titles_processed(self) -> List[str]:
-        return self._titles_processed
-
-    @property
     def k_neighbours_inference(self) -> int:
         return self._k_neighbours_inference
 
-    def display_result_by_title(self, title: str) -> Optional[Tuple[Tuple, int]]:
-        titles = self._result['Title'].index
+    def display_result_by_description(self, description: str) -> Optional[Tuple[str, np.ndarray, int]]:
+        descriptions = list(self.data.index)
 
-        if self._result is None:
+        if self.data is None:
             logging.warning("The dataset is empty, the model have not been running")
             return None
-        if title not in titles:
-            logging.warning("The title is not in the dataset")
+        if description not in descriptions:
+            logging.warning("The decsription is not in the dataset")
             return None
 
-        vector, cluster = self._result.loc[title, :].tolist()
-        return vector, cluster
+        title, vector, cluster = self.data.loc[description, :].tolist()
+        return title, vector, cluster
 
     def vectorize(self, input_information: pd.DataFrame | str, text_column: Optional[str] = None) -> np.ndarray:
         if isinstance(text_column, str):
@@ -77,9 +72,10 @@ class TopicVectorizerClusterizer:
     def clusterize_descriptions(self) -> None:
         vectors = self._dim_reducer.fit_transform(self.vectorize(self.data, 'info'))
         result = pd.DataFrame({
+            'title': self.data['title'].tolist() if 'title' in self.data.columns else self.data.index.tolist(),
             'vector': list(vectors),
             'cluster': self._cluster_model.fit_predict(vectors.tolist()).tolist()
-        }, index=self._data['title'] if 'title' in self._data.columns else self._data.index)
+        }, index=self.data['info'])
         self._vectors = result
 
     def fit_transform(self, dataset: pd.DataFrame) -> pd.DataFrame:
@@ -87,8 +83,11 @@ class TopicVectorizerClusterizer:
         self.clusterize_descriptions()
         return self._vectors
 
-    def predict(self, title: str, decsription: str) -> pd.DataFrame:
-        vector = self.vectorize(decsription)
+    def predict(self, description: str) -> pd.DataFrame:
+        if description in self._vectors.index.tolist():
+            return self._vectors.loc[description, :]
+
+        vector = self.vectorize(description)
         vector = self._dim_reducer.transform(vector.reshape(1, -1))
         vectors_space = list(enumerate(self._vectors['vector'].values))
         vectors_space.sort(key=lambda x: np.linalg.norm(x[1] - vector))
@@ -96,12 +95,12 @@ class TopicVectorizerClusterizer:
         clusters = dict()
 
         for index, _ in vectors_space:
-            clusters[self._vectors.iloc[index, 1]] = (
-                    clusters.get(self._vectors.iloc[index, 1], 0) + 1)
+            clusters[self._vectors.iloc[index, 2]] = (clusters.get(self._vectors.iloc[index, 2], 0) + 1)
 
         result = pd.DataFrame({
-            "vector": [vector.flatten()],
-            "cluster": [max(clusters, key=clusters.get)]
-        }, index=[title])
+            'title': [np.nan],
+            'vector': [vector.flatten()],
+            'cluster': [max(clusters, key=clusters.get)]
+        }, index=[description])
 
         return result

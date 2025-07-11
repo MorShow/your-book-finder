@@ -68,7 +68,6 @@ class TitleClassifier:
         return model
 
     def title_inference(self, text, num_of_batches=None):
-        print(text)
         text_sentences = nltk.sent_tokenize(text)
 
         text_batches = []

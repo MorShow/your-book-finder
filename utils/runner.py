@@ -22,15 +22,39 @@ def model_performance(data: pd.DataFrame,
                       cluster_kneigh: int,
                       umap_neigh: int,
                       umap_min_dist: float,
-                      umap_metric: str) -> Tuple[object, float]:
+                      umap_metric: str,
+                      beta: float = 1.0) -> Tuple[object, dict]:
     tvc = TopicVectorizerClusterizer(cluser_size, cluster_eps, cluster_kneigh, umap_neigh, umap_min_dist, umap_metric)
     result = tvc.fit_transform(data)
-    vectors = np.stack(result['vector'].values)
+    overall_count = result.shape[0]
+
+    result = result[result['cluster'] != -1]
+    clear_ratio = result.shape[0] / overall_count  # The ratio of clear embeddings
+    noise_ratio = 1 - clear_ratio  # The ratio of noisy embeddings
     clusters = result['cluster'].values
 
     if len(set(clusters)) < 2:
-        return tvc, -1
-    return tvc, silhouette_score(vectors, clusters)
+        return tvc, {
+            'silhouette': -1,
+            'noise_ratio': 1,
+            'F_score': 0
+        }
+
+    vectors = np.stack(result['vector'].values)
+
+    silhouette = silhouette_score(vectors, clusters, metric='cosine')  # Silhouette score
+    silhouette_scaled = (1 + silhouette) / 2
+
+    # F-score - our evaluation metric
+    f_score = ((1 + beta**2) * silhouette_scaled * clear_ratio) / (beta**2 * silhouette_scaled + clear_ratio + 10**-8)
+
+    stats = {
+        'silhouette': silhouette,
+        'noise_ratio': noise_ratio,
+        'F_score': f_score
+    }
+
+    return tvc, stats
 
 
 def objective(trial: optuna.trial.Trial, data: pd.DataFrame) -> float:
@@ -43,8 +67,9 @@ def objective(trial: optuna.trial.Trial, data: pd.DataFrame) -> float:
     umap_metric = trial.suggest_categorical('umap_metric', ['euclidean', 'manhattan',
                                                                          'chebyshev', 'cosine'])
 
-    model, score = model_performance(data, cluster_size, cluster_epsilon,
+    model, stats = model_performance(data, cluster_size, cluster_epsilon,
                                      cluster_kneighbors, umap_neigh, umap_min_dist, umap_metric)
+    score = stats['F_score']
 
     if score > objective.best_score:
         objective.best_score = score
@@ -52,6 +77,8 @@ def objective(trial: optuna.trial.Trial, data: pd.DataFrame) -> float:
             'min_cluster_size': cluster_size,
             'cluster_epsilon': cluster_epsilon,
             'cluster_kneighbors': cluster_kneighbors,
+            'silhouette': stats['silhouette'],
+            'noise_ratio': stats['noise_ratio'],
             'best_score': score,
             'best_model': model,
             'best_data': data,
@@ -87,7 +114,9 @@ def run(filename: str, n_trials: int):
         mlflow.log_param('umap_neighbors', objective.best_state['umap_neigh'])
         mlflow.log_param('umap_min_dist', objective.best_state['umap_min_dist'])
         mlflow.log_param('umap_metric', objective.best_state['umap_metric'])
-        mlflow.log_metric('silhouette_score', objective.best_score)
+        mlflow.log_metric('silhouette_score', objective.best_state['silhouette'])
+        mlflow.log_metric('noise_ratio', objective.best_state['noise_ratio'])
+        mlflow.log_metric('F_score', objective.best_score)
         mlflow.sklearn.log_model(objective.best_state['best_model'],
                                  name='best_model',
                                  input_example=objective.best_state['best_data'])
