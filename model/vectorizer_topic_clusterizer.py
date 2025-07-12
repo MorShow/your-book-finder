@@ -48,6 +48,10 @@ class TopicVectorizerClusterizer:
         return self._data
 
     @property
+    def vectors(self) -> pd.DataFrame:
+        return self._vectors
+
+    @property
     def k_neighbours_inference(self) -> int:
         return self._k_neighbours_inference
 

@@ -1,15 +1,15 @@
-from constants import MODEL_TITLES_SMALL, MODEL_TITLES_TINY
+from constants import MODEL_TITLES_SMALL, MODEL_TITLES_TINY, JSON_FILE_NAME
 
 import os
-from pathlib import Path
+import json
 import logging
+from pathlib import Path
+from typing import Optional
 
 import pandas as pd
 import torch
 import nltk
 import numpy as np
-
-os.environ["TRANSFORMERS_NO_TF"] = "1"
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 project_root = Path(__file__).resolve().parent.parent
@@ -18,10 +18,17 @@ location = project_root / 'logs' / 'title_classifier.log'
 logging.basicConfig(filename=location, encoding='utf-8', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+os.makedirs(os.path.dirname(os.path.join(project_root, 'data')), exist_ok=True)
+
 
 class TitleClassifier:
     def __init__(self, titles_list_arg='full', batch_size=20):
         self._model_name = 'cross-encoder/ms-marco-MiniLM-L-12-v2'
+        self._json_path = os.path.join(project_root, 'data', JSON_FILE_NAME)
+        if not os.path.exists(self._json_path):
+            with open(self._json_path, 'w') as f:
+                json.dump(dict(), f, indent=4)
+        self._json_data = json.load(open(self._json_path))
         self._device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self._batch_size = batch_size
         self._titles_list_arg = titles_list_arg
@@ -69,48 +76,86 @@ class TitleClassifier:
         if self._titles_list_arg == 'full':
             self.titles_list = list(self.data.loc[:, 'title'])
 
-    # TODO: refactor the method
-    def title_inference(self, text: str, cluster: int, num_of_batches=None):
-        text_sentences = self._tokenizer.tokenize(text)  # BPE: ['Hello', 'World', 'I', 'm', ..., '##er', ...]
-        cluster_data = self.data[self.data['cluster'] == cluster]
+    def _title_inference(self, text: str, cluster: Optional[int] = None) -> dict:
+        if cluster is not None and 'cluster' in self.data.columns:
+            cl_min, cl_max = min(self.data['cluster'].values), max(self.data['cluster'].values)
 
-        text_batches = []
+            if cl_min <= cluster <= cl_max:
+                cluster_data = self.data[self.data['cluster'] == cluster]
+            else:
+                cluster_data = self.data
+        else:
+            cluster_data = self.data
+        cluster_size = cluster_data.shape[0]
+        num_of_batches = int(1 / np.log10(cluster_size) * cluster_size)
+
+        title_options = dict()
         batch_count = 0
 
-        for index in range(0, len(text_sentences), self.batch_size):
-            batch = " ".join(text_sentences[index:index + self.batch_size])
-            text_batches.append(batch)
-            batch_count += 1
-            if num_of_batches and batch_count >= num_of_batches:
-                break
+        for _, row in cluster_data.iterrows():
+            title = row.get('title')
 
-        logging.info(f"The model has just started classifying ({len(text_batches)} batch(es))")
-        output = self.model(
-            text_batches,
-            self.titles_list,
-        )
+            for col in row.index:
+                if col not in ['title', 'cluster', 'text']:
+                    metadata = f'{col}: {row.get(col)}'
+                    pair_tokenized = self._tokenizer(
+                        text,
+                        metadata,
+                        return_tensors="pt",
+                        padding=True,
+                        truncation=True
+                    )  # BPE: ['Hello', 'World', 'I', ..., '##er', ...]
+                    title_options.setdefault(title, []).append(pair_tokenized)
+                if col == 'text':
+                    for index in range(0, len(row.get(col)), self.batch_size):
+                        batch_text = " ".join(text[index:index + self.batch_size])
+                        batch_tokenized = self._tokenizer(
+                            text,
+                            batch_text,
+                            return_tensors="pt",
+                            padding=True,
+                            truncation=True
+                        )
+                        title_options[title].append(batch_tokenized)
+                        batch_count += 1
+                        if num_of_batches and batch_count >= num_of_batches:
+                            break
 
-        title_inferences = {}
+        logging.info(f"The model has just started classifying the correct titles.")
 
-        inference_count = 0
-        output_size = len(output)
-        for item in output:
-            for label, score in zip(item['labels'], item['scores']):
-                inference_count += 1
-                logger.info(f'{label}: {output_size - score}. {output_size - inference_count} inferences left')
-                if label not in title_inferences:
-                    title_inferences[label] = []
-                title_inferences[label].append(score)
+        title_scores = dict()
 
-        inferences_means = {key: np.mean(item).item() for key, item in title_inferences.items()}
+        for title, tokenized_pairs in title_options.items():
+            input_texts = [self._tokenizer.decode(pair_tokenized['input_ids'].squeeze(),
+                                                  skip_special_tokens=True)
+                           for pair_tokenized in tokenized_pairs]
 
-        return inferences_means
+            encoded = self._tokenizer(
+                input_texts,
+                return_tensors='pt',
+                padding=True,
+                truncation=True
+            )
 
-    def get_titles(self, path_to_data, save_path, num_of_books=None, num_of_batches=None):
-        inferences = self.data.loc[:, 'text'].apply(lambda x: self.title_inference(x, num_of_batches))
-        inferences = pd.DataFrame.from_dict(inferences).rename(columns={'text': 'scores'})
-        save_df = pd.DataFrame(self.data.loc[:, ['title', 'author']])
-        save_df[inferences.columns] = inferences[inferences.columns]
-        save_df.to_csv(Path(save_path), index=False)
+            with torch.no_grad():
+                outputs = self._model(**encoded)
+                scores = outputs.logits.squeeze(-1)
 
-        return save_df
+            avg_score = scores.mean().item()
+            title_scores[title] = avg_score
+
+        return title_scores
+
+    def get_titles(self, text: str, save_path=None, cluster: Optional[int] = None):
+        if self._json_data.get(text, None) is not None:
+            return pd.read_csv(Path(self._json_data[text]))
+
+        inferences = self._title_inference(text, cluster)
+        inferences = pd.DataFrame(list(inferences.items()), columns=['title', 'score'])
+        top_three_inferences = inferences.sort_values(by='score', ascending=False)[:3]
+        if save_path is not None:
+            self._json_data[text] = save_path
+            json.dump(self._json_data, open(os.path.join(project_root, 'data', JSON_FILE_NAME), 'w'), indent=4)
+            top_three_inferences.to_csv(Path(save_path), index=False)
+
+        return top_three_inferences

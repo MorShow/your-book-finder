@@ -30,7 +30,7 @@ class BookFinder:
 
         self._tvc.fit_transform(data)
         self._title_classifier.load_data(data, num_of_books)
-        self._title_classifier.data['cluster'] = self._tvc.data['cluster']
+        self._title_classifier.data['cluster'] = self._tvc.vectors['cluster']
         self._title_classifier.load_model()
 
         count = self._tvc.data.shape[0]
@@ -40,5 +40,5 @@ class BookFinder:
     # TODO: finalize the method
     def predict(self, info: str):
         sample = self._tvc.predict(description=info)
-        cluster = sample.get('cluster')
-        self._title_classifier.title_inference(info, cluster)
+        cluster = sample.get('cluster').values[0]
+        self._title_classifier._title_inference(info, cluster)

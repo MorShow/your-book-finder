@@ -47,3 +47,5 @@ MODEL_TITLES_TINY = MODEL_TITLES_SMALL[:5]
 
 NUM_OF_BATCHES_DEV = None
 NUM_OF_BATCHES_CI = 5
+
+JSON_FILE_NAME = 'json_saved_data_mapping.json'
