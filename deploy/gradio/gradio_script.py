@@ -1,38 +1,24 @@
-from model import TitleClassifier
-from constants import MODEL_TITLES_SIZE_FAST_TEST, MODEL_TITLES_SIZE_CI, NUM_OF_BATCHES_CI
+from model import BookFinder
 
 from functools import partial
+from typing import Optional
 
 import gradio as gr
 
 
-def get_title(path_to_data, save_path, num_of_books=None, num_of_batches=None):
-    model = TitleClassifier(titles_list_arg=MODEL_TITLES_SIZE_FAST_TEST)
-
-    inference_df = model.get_titles(path_to_data, save_path, int(num_of_books), num_of_batches)
+def get_title(description: str, save_path: Optional[str] = None, model: Optional[BookFinder] = None):
+    inference_df = model.predict(description, save_path)
     return_string = ''
     counter = 1
 
-    for item in inference_df.iterrows():
-        print(item[1]['scores'])
-        scores_dict = item[1]['scores']
-        if isinstance(item[1]['scores'], str):
-            scores_dict = eval(item[1]['scores'])
-        labels = list(scores_dict.keys())
-        values = list(scores_dict.values())
-        max_likelihood = max(values)
-        max_likelihood_label = labels[values.index(max_likelihood)]
-
-        return_string += f'{counter}. book: {max_likelihood_label}, {round(max_likelihood * 100, 2)}%\n'
+    for _, item in inference_df.iterrows():
+        return_string += f'{counter}. book: {item.get("title")}, {item.get("score")}\n'
         counter += 1
 
     return return_string
 
 
-wrapper = partial(get_title, num_of_batches=NUM_OF_BATCHES_CI)
-
-
-def main():
+def main(model: BookFinder):
     with gr.Blocks() as iface:
         with gr.Row() as row:
             gr.HTML('<h1>Your book finder</h1>')
@@ -45,16 +31,12 @@ def main():
             language = gr.Textbox(label='The language of the book in which it was written')
             year = gr.Textbox(label='The year the book was written '
                                     '(Probably, you do not have even a clue so you can just type "None")')
-            path_to_data = gr.Textbox(label='Type the path to the books descriptions titles of which you want to get')
-            save_path = gr.Textbox(label='Where the result should be saved?')
-            num_of_books = gr.Textbox(label='How many books from the given set do you want to find? '
-                                            '(The first N books will be found)')
+            save_path = gr.Textbox(label='Where the result should be saved? ( (/.../)<filename>.csv )')
+            # TODO: (maybe) make this option available, but I`m not sure, it will bear optimization problems
+            # num_of_books = gr.Textbox(label='How many books from the given set do you want to find? '
+            #                                 '(The first N books will be found)')
         with gr.Row() as row:
             submit_button = gr.Button('Submit')
-            submit_button.click(wrapper, [path_to_data, save_path, num_of_books], answer)
+            submit_button.click(partial(get_title, model=model), [description, save_path], answer)
 
     iface.launch(share=True)
-
-
-if __name__ == '__main__':
-    main()

@@ -1,8 +1,10 @@
+from typing import Optional
+
 import pandas as pd
 import numpy as np
 
-from vectorizer_topic_clusterizer import TopicVectorizerClusterizer
-from title_classifier import TitleClassifier
+from model import TopicVectorizerClusterizer
+from model import TitleClassifier
 
 
 class BookFinder:
@@ -37,8 +39,8 @@ class BookFinder:
         self._threshold = count * 2
         self._counter += count
 
-    # TODO: finalize the method
-    def predict(self, info: str):
+    def predict(self, info: str, save_path: Optional[str] = None) -> pd.DataFrame:
+        # TODO: updating the samples lists (for Clustering model and TitleClassifier)
         sample = self._tvc.predict(description=info)
         cluster = sample.get('cluster').values[0]
-        self._title_classifier._title_inference(info, cluster)
+        return self._title_classifier.get_titles(info, save_path, cluster)

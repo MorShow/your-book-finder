@@ -13,6 +13,7 @@ import numpy as np
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 project_root = Path(__file__).resolve().parent.parent
+final_path = os.path.join(project_root, 'data', 'final')
 location = project_root / 'logs' / 'title_classifier.log'
 
 logging.basicConfig(filename=location, encoding='utf-8', level=logging.INFO)
@@ -22,7 +23,7 @@ os.makedirs(os.path.dirname(os.path.join(project_root, 'data')), exist_ok=True)
 
 
 class TitleClassifier:
-    def __init__(self, titles_list_arg='full', batch_size=20):
+    def __init__(self, batch_size=20):
         self._model_name = 'cross-encoder/ms-marco-MiniLM-L-12-v2'
         self._json_path = os.path.join(project_root, 'data', JSON_FILE_NAME)
         if not os.path.exists(self._json_path):
@@ -31,18 +32,8 @@ class TitleClassifier:
         self._json_data = json.load(open(self._json_path))
         self._device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self._batch_size = batch_size
-        self._titles_list_arg = titles_list_arg
-        self._titles_list = MODEL_TITLES_SMALL if titles_list_arg == 'small' else MODEL_TITLES_TINY
         self._data = None
         self._tokenizer, self._model = self.load_model()
-
-    @property
-    def titles_list(self):
-        return self._titles_list
-
-    @titles_list.setter
-    def titles_list(self, titles_list):
-        self._titles_list = titles_list
 
     @property
     def data(self):
@@ -73,8 +64,8 @@ class TitleClassifier:
         # r"../data/raw/gutenberq_books_tiny.csv" - common pipeline
         self._data = data
 
-        if self._titles_list_arg == 'full':
-            self.titles_list = list(self.data.loc[:, 'title'])
+        if num_of_books is not None:
+            self._data = self._data.sample(num_of_books)
 
     def _title_inference(self, text: str, cluster: Optional[int] = None) -> dict:
         if cluster is not None and 'cluster' in self.data.columns:
@@ -148,14 +139,14 @@ class TitleClassifier:
 
     def get_titles(self, text: str, save_path=None, cluster: Optional[int] = None):
         if self._json_data.get(text, None) is not None:
-            return pd.read_csv(Path(self._json_data[text]))
+            return pd.read_csv(os.path.join(final_path, Path(self._json_data[text])))
 
         inferences = self._title_inference(text, cluster)
         inferences = pd.DataFrame(list(inferences.items()), columns=['title', 'score'])
         top_three_inferences = inferences.sort_values(by='score', ascending=False)[:3]
-        if save_path is not None:
+        if save_path and save_path.endswith('.csv'):
+            top_three_inferences.to_csv(os.path.join(final_path, Path(save_path)), index=False)
             self._json_data[text] = save_path
             json.dump(self._json_data, open(os.path.join(project_root, 'data', JSON_FILE_NAME), 'w'), indent=4)
-            top_three_inferences.to_csv(Path(save_path), index=False)
 
         return top_three_inferences
