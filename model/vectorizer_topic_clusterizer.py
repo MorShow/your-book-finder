@@ -24,11 +24,12 @@ class TopicVectorizerClusterizer:
                  k_neighbours_inference: int = 5,
                  umap_neighbors: int = 15,
                  umap_min_dist: float = 0.1,
-                 umap_metric: str = 'euclidian') -> None:
+                 umap_metric: str = 'euclidian',
+                 umap_components: int = 15) -> None:
         self._vector_model = SentenceTransformer(str(vector_model_path))
         self._cluster_model = HDBSCAN(min_cluster_size=min_cluster_size,
                                       cluster_selection_epsilon=cluster_selection_epsilon)
-        self._dim_reducer = UMAP(n_components=15,
+        self._dim_reducer = UMAP(n_components=umap_components,
                                  min_dist=umap_min_dist,
                                  n_neighbors=umap_neighbors,
                                  metric=umap_metric,

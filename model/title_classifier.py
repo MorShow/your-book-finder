@@ -98,8 +98,10 @@ class TitleClassifier:
                     )  # BPE: ['Hello', 'World', 'I', ..., '##er', ...]
                     title_options.setdefault(title, []).append(pair_tokenized)
                 if col == 'text':
-                    for index in range(0, len(row.get(col)), self.batch_size):
-                        batch_text = " ".join(text[index:index + self.batch_size])
+                    text_of_book = row.get('text').split()
+
+                    for index in range(0, len(text_of_book), self.batch_size):
+                        batch_text = " ".join(text_of_book[index:index + self.batch_size])
                         batch_tokenized = self._tokenizer(
                             text,
                             batch_text,
@@ -137,7 +139,7 @@ class TitleClassifier:
 
         return title_scores
 
-    def get_titles(self, text: str, save_path=None, cluster: Optional[int] = None):
+    def get_titles(self, text: str, save_path=None, cluster: Optional[int] = None) -> pd.DataFrame:
         if self._json_data.get(text, None) is not None:
             return pd.read_csv(os.path.join(final_path, Path(self._json_data[text])))
 
@@ -145,8 +147,11 @@ class TitleClassifier:
         inferences = pd.DataFrame(list(inferences.items()), columns=['title', 'score'])
         top_three_inferences = inferences.sort_values(by='score', ascending=False)[:3]
         if save_path and save_path.endswith('.csv'):
-            top_three_inferences.to_csv(os.path.join(final_path, Path(save_path)), index=False)
-            self._json_data[text] = save_path
-            json.dump(self._json_data, open(os.path.join(project_root, 'data', JSON_FILE_NAME), 'w'), indent=4)
+            if save_path in self._json_data.values():
+                logger.warning("The csv file with this name already exists, the inference will not be cached.")
+            else:
+                top_three_inferences.to_csv(os.path.join(final_path, Path(save_path)), index=False)
+                self._json_data[text] = save_path
+                json.dump(self._json_data, open(os.path.join(project_root, 'data', JSON_FILE_NAME), 'w'), indent=4)
 
         return top_three_inferences

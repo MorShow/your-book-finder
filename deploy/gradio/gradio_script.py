@@ -40,3 +40,17 @@ def main(model: BookFinder):
             submit_button.click(partial(get_title, model=model), [description, save_path], answer)
 
     iface.launch(share=True)
+
+
+if __name__ == '__main__':
+    book_finder = BookFinder(
+        cluster_selection_epsilon=0.2546331876872773,
+        k_neighbours_inference=29,
+        min_cluster_size=17,
+        umap_metric='euclidean',
+        umap_min_dist=0.21872587813809782,
+        umap_neighbors=8
+    )
+    book_finder.fit(r'C:\Users\aleks\OneDrive\Desktop\Studying\your-book-finder\data\raw\gutenberq_books_tiny.csv')
+
+    main(book_finder)
