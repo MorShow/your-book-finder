@@ -12,7 +12,7 @@ def get_title(description: str, save_path: Optional[str] = None, model: Optional
     counter = 1
 
     for _, item in inference_df.iterrows():
-        return_string += f'{counter}. book: {item.get("title")}, {item.get("score")}\n'
+        return_string += f'{counter}. book: {item.get("title")},\nprobability: {item.get("score") * 100:.2f} %\n'
         counter += 1
 
     return return_string

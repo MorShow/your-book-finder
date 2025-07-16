@@ -10,6 +10,8 @@ import pandas as pd
 import torch
 import nltk
 import numpy as np
+import torch
+import torch.nn.functional as F
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 project_root = Path(__file__).resolve().parent.parent
@@ -137,7 +139,13 @@ class TitleClassifier:
             avg_score = scores.mean().item()
             title_scores[title] = avg_score
 
-        return title_scores
+        probabilities = F.softmax(torch.tensor(list(title_scores.values())), dim=-1).tolist()
+        title_probabilities = dict()
+        for title, prob in zip(title_scores.keys(), probabilities):
+            title_probabilities[title] = prob
+
+        print(title_probabilities)
+        return title_probabilities
 
     def get_titles(self, text: str, save_path=None, cluster: Optional[int] = None) -> pd.DataFrame:
         if self._json_data.get(text, None) is not None:
