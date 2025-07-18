@@ -28,9 +28,6 @@ def main(model: BookFinder):
             answer = gr.Text()
         with gr.Row() as row:
             description = gr.Textbox(label='Description')
-            language = gr.Textbox(label='The language of the book in which it was written')
-            year = gr.Textbox(label='The year the book was written '
-                                    '(Probably, you do not have even a clue so you can just type "None")')
             save_path = gr.Textbox(label='Where the result should be saved? ( (/.../)<filename>.csv )')
             # TODO: (maybe) make this option available, but I`m not sure, it will bear optimization problems
             # num_of_books = gr.Textbox(label='How many books from the given set do you want to find? '

@@ -1,5 +1,6 @@
 from constants import MODEL_TITLES_SMALL, MODEL_TITLES_TINY, JSON_FILE_NAME
 
+import random
 import os
 import json
 import logging
@@ -12,7 +13,9 @@ import nltk
 import numpy as np
 import torch
 import torch.nn.functional as F
+from torch.nn.functional import cosine_similarity
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from sentence_transformers import SentenceTransformer
 
 project_root = Path(__file__).resolve().parent.parent
 final_path = os.path.join(project_root, 'data', 'final')
@@ -35,7 +38,7 @@ class TitleClassifier:
         self._device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self._batch_size = batch_size
         self._data = None
-        self._tokenizer, self._model = self.load_model()
+        self._tokenizer, self._model, self._bi_encoder = self.load_model()
 
     @property
     def data(self):
@@ -60,7 +63,8 @@ class TitleClassifier:
     def load_model(self):
         tokenizer = AutoTokenizer.from_pretrained(self._model_name)
         model = AutoModelForSequenceClassification.from_pretrained(self._model_name)
-        return tokenizer, model
+        bi_encoder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+        return tokenizer, model, bi_encoder
 
     def load_data(self, data: pd.DataFrame, num_of_books: int = None) -> None:
         # r"../data/raw/gutenberq_books_tiny.csv" - common pipeline
@@ -69,7 +73,9 @@ class TitleClassifier:
         if num_of_books is not None:
             self._data = self._data.sample(num_of_books)
 
-    def _title_inference(self, text: str, cluster: Optional[int] = None) -> dict:
+    def _title_inference(self,
+                         text: str,
+                         cluster: Optional[int] = None) -> dict:
         if cluster is not None and 'cluster' in self.data.columns:
             cl_min, cl_max = min(self.data['cluster'].values), max(self.data['cluster'].values)
 
@@ -80,43 +86,48 @@ class TitleClassifier:
         else:
             cluster_data = self.data
         cluster_size = cluster_data.shape[0]
-        num_of_batches = int(1 / np.log10(cluster_size) * cluster_size)
-
+        text_embedding = self._bi_encoder.encode(text, convert_to_tensor=True)
         title_options = dict()
-        batch_count = 0
+
+        logging.info(f"The model has just started choosing the best titles.")
 
         for _, row in cluster_data.iterrows():
+            batch_count = 0
             title = row.get('title')
+            text_of_book = row.get('text').split()
+            num_of_batches = int(len(text_of_book) / (10 * np.log10(cluster_size) * self.batch_size))
+            print(f'NUMBER OF BATCHES: {num_of_batches}')
 
-            for col in row.index:
-                if col not in ['title', 'cluster', 'text']:
-                    metadata = f'{col}: {row.get(col)}'
-                    pair_tokenized = self._tokenizer(
-                        text,
-                        metadata,
-                        return_tensors="pt",
-                        padding=True,
-                        truncation=True
-                    )  # BPE: ['Hello', 'World', 'I', ..., '##er', ...]
-                    title_options.setdefault(title, []).append(pair_tokenized)
-                if col == 'text':
-                    text_of_book = row.get('text').split()
+            chunks = []
+            for index in range(0, len(text_of_book), self.batch_size):
+                chunks.append(' '.join(text_of_book[index:index + self.batch_size]))
+            random_chunks = random.sample(chunks, num_of_batches)
+            bi_encoded_chunks = self._bi_encoder.encode(random_chunks, convert_to_tensor=True)
+            bi_encoded_scores = []
 
-                    for index in range(0, len(text_of_book), self.batch_size):
-                        batch_text = " ".join(text_of_book[index:index + self.batch_size])
-                        batch_tokenized = self._tokenizer(
-                            text,
-                            batch_text,
-                            return_tensors="pt",
-                            padding=True,
-                            truncation=True
-                        )
-                        title_options[title].append(batch_tokenized)
-                        batch_count += 1
-                        if num_of_batches and batch_count >= num_of_batches:
-                            break
+            for info, chunk in zip(chunks, bi_encoded_chunks):
+                score = cosine_similarity(text_embedding.unsqueeze(0), chunk.unsqueeze(0)).item()
+                bi_encoded_scores.append((info, score))
 
-        logging.info(f"The model has just started classifying the correct titles.")
+            topk_batches = int(0.01 * len(bi_encoded_chunks)) + 5 if len(bi_encoded_chunks) > 100 else 5
+            bi_encoded_scores.sort(key=lambda x: x[1], reverse=True)
+            top_random_chunks = bi_encoded_scores[:topk_batches]
+            print(top_random_chunks)
+
+            for chunk, _ in top_random_chunks:
+                batch_tokenized = self._tokenizer(
+                    text,
+                    chunk,
+                    return_tensors="pt",
+                    padding=True,
+                    truncation=True
+                )
+                title_options.setdefault(title, []).append(batch_tokenized)
+                batch_count += 1
+                if num_of_batches and batch_count >= num_of_batches:
+                    break
+
+            print('-' * 40 + 'NEW BOOK' + '-' * 40)
 
         title_scores = dict()
 
@@ -144,7 +155,6 @@ class TitleClassifier:
         for title, prob in zip(title_scores.keys(), probabilities):
             title_probabilities[title] = prob
 
-        print(title_probabilities)
         return title_probabilities
 
     def get_titles(self, text: str, save_path=None, cluster: Optional[int] = None) -> pd.DataFrame:
@@ -163,3 +173,17 @@ class TitleClassifier:
                 json.dump(self._json_data, open(os.path.join(project_root, 'data', JSON_FILE_NAME), 'w'), indent=4)
 
         return top_three_inferences
+
+
+if __name__ == '__main__':
+    tc = TitleClassifier()
+    tc.load_model()
+    data = '...'
+    tc.load_data(data)
+    description = ("The story about a mischievous, imaginative, "
+                   "and adventurous boy living in a small town on the river. "
+                   "He's known for his cleverness and ability to get himself and his friends "
+                   "into and out of trouble through his escapades. While often portrayed as a troublemaker, "
+                   "he possesses a good heart and a strong moral compass, ultimately growing into a more "
+                   "responsible and empathetic young man")
+    print(f"Final answer: {tc.get_titles(description)}")
