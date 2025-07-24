@@ -11,9 +11,6 @@ from sklearn.metrics import silhouette_score
 import mlflow
 import mlflow.sklearn
 import optuna
-# from airflow import DAG
-# from airflow.decorators import task, task_group
-# from airflow.dates import days_ago
 
 
 def model_performance(data: pd.DataFrame,
@@ -123,5 +120,5 @@ def run(filename: str, n_trials: int):
 
 
 if __name__ == '__main__':
-    run(r'C:\Users\aleks\OneDrive\Desktop\Studying\your-book-finder\data\raw\gutenberq_books_tiny.csv',
+    run(r'/data/raw/gutenberq_books_tiny.csv',
         n_trials=20)
