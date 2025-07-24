@@ -15,7 +15,8 @@ class BookFinder:
                  umap_neighbors: int = 15,
                  umap_min_dist: float = 0.1,
                  umap_metric: str = 'euclidian',
-                 umap_components: int = 15
+                 umap_components: int = 15,
+                 batch_size: int = 20
                  ) -> None:
         self._tvc = TopicVectorizerClusterizer(min_cluster_size=min_cluster_size,
                                                cluster_selection_epsilon=cluster_selection_epsilon,
@@ -24,7 +25,7 @@ class BookFinder:
                                                umap_min_dist=umap_min_dist,
                                                umap_metric=umap_metric,
                                                umap_components=umap_components)
-        self._title_classifier = TitleClassifier()
+        self._title_classifier = TitleClassifier(batch_size=batch_size)
 
         self._threshold = None
         self._counter = 0

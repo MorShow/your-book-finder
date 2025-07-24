@@ -85,56 +85,39 @@ class TitleClassifier:
                 cluster_data = self.data
         else:
             cluster_data = self.data
+
         cluster_size = cluster_data.shape[0]
         text_embedding = self._bi_encoder.encode(text, convert_to_tensor=True)
         title_options = dict()
 
-        logging.info(f"The model has just started choosing the best titles.")
+        logging.info(f"The model has just started choosing the titles.")
 
         for _, row in cluster_data.iterrows():
-            batch_count = 0
             title = row.get('title')
             text_of_book = row.get('text').split()
-            num_of_batches = int(len(text_of_book) / (10 * np.log10(cluster_size) * self.batch_size))
-            print(f'NUMBER OF BATCHES: {num_of_batches}')
+            num_of_batches = int(len(text_of_book) / (100 * np.log10(cluster_size) * self.batch_size))
 
             chunks = []
-            for index in range(0, len(text_of_book), self.batch_size):
+            for index in range(0, len(text_of_book), 10 * self.batch_size):
                 chunks.append(' '.join(text_of_book[index:index + self.batch_size]))
-            random_chunks = random.sample(chunks, num_of_batches)
-            bi_encoded_chunks = self._bi_encoder.encode(random_chunks, convert_to_tensor=True)
-            bi_encoded_scores = []
 
+            bi_encoded_chunks = self._bi_encoder.encode(chunks, convert_to_tensor=True)
+            bi_encoded_scores = []
             for info, chunk in zip(chunks, bi_encoded_chunks):
                 score = cosine_similarity(text_embedding.unsqueeze(0), chunk.unsqueeze(0)).item()
                 bi_encoded_scores.append((info, score))
-
-            topk_batches = int(0.01 * len(bi_encoded_chunks)) + 5 if len(bi_encoded_chunks) > 100 else 5
             bi_encoded_scores.sort(key=lambda x: x[1], reverse=True)
-            top_random_chunks = bi_encoded_scores[:topk_batches]
-            print(top_random_chunks)
+            best_chunks = bi_encoded_scores[:num_of_batches]
 
-            for chunk, _ in top_random_chunks:
-                batch_tokenized = self._tokenizer(
-                    text,
-                    chunk,
-                    return_tensors="pt",
-                    padding=True,
-                    truncation=True
-                )
-                title_options.setdefault(title, []).append(batch_tokenized)
-                batch_count += 1
-                if num_of_batches and batch_count >= num_of_batches:
-                    break
-
-            print('-' * 40 + 'NEW BOOK' + '-' * 40)
+            title_options[title] = [title for title, _ in best_chunks]
 
         title_scores = dict()
 
-        for title, tokenized_pairs in title_options.items():
-            input_texts = [self._tokenizer.decode(pair_tokenized['input_ids'].squeeze(),
-                                                  skip_special_tokens=True)
-                           for pair_tokenized in tokenized_pairs]
+        for title, chunks in title_options.items():
+            if not chunks:
+                continue
+
+            input_texts = [(text, chunk) for chunk in chunks]
 
             encoded = self._tokenizer(
                 input_texts,
@@ -176,14 +159,21 @@ class TitleClassifier:
 
 
 if __name__ == '__main__':
-    tc = TitleClassifier()
-    tc.load_model()
-    data = '...'
-    tc.load_data(data)
+    from book_finder import BookFinder
+
+    bf = BookFinder(cluster_selection_epsilon=0.2546331876872773,
+                    k_neighbours_inference=29,
+                    min_cluster_size=17,
+                    umap_metric='euclidean',
+                    umap_min_dist=0.21872587813809782,
+                    umap_neighbors=8,
+                    batch_size=55)
+    data = "..."
+    bf.fit(data)
     description = ("The story about a mischievous, imaginative, "
-                   "and adventurous boy living in a small town on the river. "
+                   "and adventurous boy living in a small town on the Mississippi river."
                    "He's known for his cleverness and ability to get himself and his friends "
                    "into and out of trouble through his escapades. While often portrayed as a troublemaker, "
                    "he possesses a good heart and a strong moral compass, ultimately growing into a more "
                    "responsible and empathetic young man")
-    print(f"Final answer: {tc.get_titles(description)}")
+    print(f"Final answer: {bf.predict(description)}")
