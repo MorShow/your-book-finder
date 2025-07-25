@@ -50,6 +50,12 @@
 ## 5. Parallelization, CI/CD, and Versioning:
 - Stack: scrapy-redis, Airflow, and MLFlow
 - Clustering: the Silhouette score as the main metric (maximizing via Optuna search)
+- Airflow pipeline:
+  1. How? -> Working with the Docker container
+  2. Commands to work with Docker:
+     docker-compose build (build the container, install the dependencies)
+     docker-compose up [-d] (start the Airflow server)
+     docker-compose down (terminate the container/Airflow server)
 
 ## 6. API creation:
 ...
