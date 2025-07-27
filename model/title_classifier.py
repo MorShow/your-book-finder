@@ -1,6 +1,7 @@
 from constants import MODEL_TITLES_SMALL, MODEL_TITLES_TINY, JSON_FILE_NAME
 
 import random
+import datetime
 import os
 import json
 import logging
@@ -19,9 +20,10 @@ from sentence_transformers import SentenceTransformer
 
 project_root = Path(__file__).resolve().parent.parent
 final_path = os.path.join(project_root, 'data', 'final')
-location = project_root / 'logs' / 'title_classifier.log'
+log_filename = 'log_' + datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
+log_location = project_root / 'logs' / (log_filename + '.log')
 
-logging.basicConfig(filename=location, encoding='utf-8', level=logging.INFO)
+logging.basicConfig(filename=log_location, encoding='utf-8', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 os.makedirs(os.path.dirname(os.path.join(project_root, 'data')), exist_ok=True)
@@ -36,6 +38,7 @@ class TitleClassifier:
                 json.dump(dict(), f, indent=4)
         self._json_data = json.load(open(self._json_path))
         self._device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        print(self._device)
         self._batch_size = batch_size
         self._data = None
         self._tokenizer, self._model, self._bi_encoder = self.load_model()
@@ -168,7 +171,7 @@ if __name__ == '__main__':
                     umap_min_dist=0.21872587813809782,
                     umap_neighbors=8,
                     batch_size=55)
-    data = "..."
+    data = pd.read_csv('...')
     bf.fit(data)
     description = ("The story about a mischievous, imaginative, "
                    "and adventurous boy living in a small town on the Mississippi river."

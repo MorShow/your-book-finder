@@ -56,6 +56,7 @@
      docker-compose build (build the container, install the dependencies)
      docker-compose up [-d] (start the Airflow server)
      docker-compose down (terminate the container/Airflow server)
+     (* or just use make commands)
 
 ## 6. API creation:
 ...
