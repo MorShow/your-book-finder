@@ -36,7 +36,7 @@
   this vector should be assigned to some cluster later.
      Yes, the Qdrant vector Database 
   could be used for this task (but I want my own implementation).
-  4) Inferring: ROBERTA (or another Transformer model) is used for choosing the best point matching the user`s
+  4) Inferring: cross-encoder is used for choosing the best point matching the user`s
      query inside the narrowed batch of points
 
 ### 3.1 Embeddings + Clustering model:
@@ -49,7 +49,11 @@
 
 ## 5. Parallelization, CI/CD, and Versioning:
 - Stack: scrapy-redis, Airflow, and MLFlow
-- Clustering: the Silhouette score as the main metric (maximizing via Optuna search)
+- Clustering: the F-score (an adapted version) as the main metric (maximizing via Optuna search)
+  * F-score = ((1 + beta**2) * silhouette_scaled * clear_ratio) / (beta**2 * silhouette_scaled + clear_ratio + 10**-8)
+  * The metric scales the Silhoutte score silhouette_scaled = (1 + silhouette_score) / 2
+  * clear_ratio - the ratio of correctly classified (not noisy) points
+  * The final metric is just a sophisticated combination of them, the user should choose the beta
 - Airflow pipeline:
   1. How? -> Working with the Docker container
   2. Commands to work with Docker:
@@ -58,5 +62,7 @@
      docker-compose down (terminate the container/Airflow server)
      (* or just use make commands)
 
-## 6. API creation:
-...
+## 6. Application:
+  1. The Gradio was chosen as the main library for the CI/CD process. For example, in Gradio application you can choose 
+  the location of the CSV to cache it
+  2. But the main chatbot was created in Telegram, so 'pip install python-telegram-bot'

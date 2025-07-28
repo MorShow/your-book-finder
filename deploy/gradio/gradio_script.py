@@ -48,6 +48,6 @@ if __name__ == '__main__':
         umap_min_dist=0.21872587813809782,
         umap_neighbors=8
     )
-    book_finder.fit(r'C:\Users\aleks\OneDrive\Desktop\Studying\your-book-finder\data\raw\gutenberq_books_tiny.csv')
+    book_finder.fit('...')
 
     main(book_finder)
