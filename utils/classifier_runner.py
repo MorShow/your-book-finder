@@ -1,42 +1,56 @@
 from model import TitleClassifier
 
-
 from functools import partial
 from typing import Tuple
 from datetime import datetime
 
 import numpy as np
 import pandas as pd
+from datetime import datetime
 
 import mlflow
 import mlflow.sklearn
 import optuna
 from transformers import pipeline
+from openai import OpenAI
+
+openai_api_key = "empty"
+openai_api_base = "http://localhost:8000/v1"
 
 
 def model_performance(data: pd.DataFrame,
                       batch_size=20) -> None:
-    prompt_generator = pipeline(
-        task='text-generation',
-        model='HuggingFaceH4/zephyr-7b-beta'
-    )
+    prompt_generator = OpenAI(api_key=openai_api_key,
+                              base_url=openai_api_base)
 
     tc = TitleClassifier(batch_size=batch_size)
     tc.load_model()
     tc.load_data(data)
-    tc.data.sample(0.2 * tc.data.shape[0], random_state=42)
+    tc.data.sample(int(0.2 * tc.data.shape[0]), random_state=42)
 
-    messages = ['Imagine that you are looking for some book. You are using the recommendation system, and'
-                'you don`t know all the details about this particular book.'
-                'Generate please a short user`s description of the book and the respective request.'
-                'So, don`t mention any specific details about this book. It cannot be spoilered'
-                'by the user trying to find it.'
-                'The name of the book: ' + title for title in tc.data.title]
+    messages = [{'role': 'user', 'content': 'The title of the book: ' + title} for title in tc.data.title[:1]]
+    messages.insert(0,
+                    {'role': 'system',
+                             'content': 'Imagine that you are looking for some book. You are using the recommendation '
+                                        'system, and you don`t know the details about this particular book.'
+                                        'For example, you don`t know who wrote this book and the title.'
+                                        'Generate please short user`s descriptions given the title of the book.'
+                                        'But don`t mention the title, author, year of publication, etc. '
+                                        'It cannot be written by the user trying to find it.'
+                                        "BAD EXAMPLE: 'I'm looking for Harry Potter by J.K. Rowling.'\n"
+                                        "GOOD EXAMPLE: 'It's about a young boy who discovers he has magical powers "
+                                        "and attends a special school.'\n"
+                                        "Your response should be like the GOOD EXAMPLE."})
 
-    answer = prompt_generator.predict(messages)
-    print(answer)
-    print(answer.params)
-    generated_prompts = answer
+    answer = prompt_generator.chat.completions.create(
+        model='TinyLlama/TinyLlama-1.1B-Chat-v1.0',
+        messages=messages,
+        temperature=0.01
+    )
+    # print(tc.data.title[:1])
+    print(answer.choices[0].message.content)
+    # print(answer)
+    # generated_prompts = answer
 
     # result = result[result['cluster'] != -1]
     # clear_ratio = result.shape[0] / overall_count  # The ratio of clear embeddings
@@ -133,5 +147,5 @@ def model_performance(data: pd.DataFrame,
 
 
 if __name__ == '__main__':
-    table = pd.read_csv('...')
+    table = pd.read_csv(r'C:\Users\aleks\OneDrive\Desktop\Studying\your-book-finder\data\raw\gutenberq_books_tiny.csv')
     model_performance(table, batch_size=20)

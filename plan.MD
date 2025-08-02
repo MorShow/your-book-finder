@@ -63,6 +63,6 @@
      (* or just use make commands)
 
 ## 6. Application:
-  1. The Gradio was chosen as the main library for the CI/CD process. For example, in Gradio application you can choose 
-  the location of the CSV to cache it
-  2. But the main chatbot was created in Telegram, so 'pip install python-telegram-bot'
+  1. The Gradio—for the process of the model validation.
+     For example, in Gradio application you can choose the location of the CSV to cache it
+  2. The main application (chatbot) was created in Telegram, so 'pip install python-telegram-bot'
