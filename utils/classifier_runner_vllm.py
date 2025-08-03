@@ -1,18 +1,44 @@
 from model import TitleClassifier
 
+import re
 from functools import partial
 from typing import Tuple
 from datetime import datetime
 
+import nltk
 import numpy as np
 import pandas as pd
 from datetime import datetime
+from nltk.tokenize import sent_tokenize, word_tokenize
 
 import mlflow
 import mlflow.sklearn
 import optuna
 from transformers import pipeline
 from openai import OpenAI
+
+nltk.download('punkt')
+
+
+def clean_description(text: str) -> str:
+    sentences = sent_tokenize(text)
+    cleaned_sentences = []
+
+    for sentence in sentences:
+        words = word_tokenize(sentence)
+        new_words = []
+
+        for i, word in enumerate(words):
+            if word.isdigit() or word[0].isupper():
+                continue
+            new_words.append(word)
+
+        cleaned_sentences.append(" ".join(new_words))
+
+    cleaned_text = " ".join(cleaned_sentences)
+    cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
+    return cleaned_text
+
 
 openai_api_key = "empty"
 openai_api_base = "http://localhost:8000/v1"
@@ -28,27 +54,40 @@ def model_performance(data: pd.DataFrame,
     tc.load_data(data)
     tc.data.sample(int(0.2 * tc.data.shape[0]), random_state=42)
 
-    messages = [{'role': 'user', 'content': 'The title of the book: ' + title} for title in tc.data.title[:1]]
-    messages.insert(0,
-                    {'role': 'system',
-                             'content': 'Imagine that you are looking for some book. You are using the recommendation '
-                                        'system, and you don`t know the details about this particular book.'
-                                        'For example, you don`t know who wrote this book and the title.'
-                                        'Generate please short user`s descriptions given the title of the book.'
-                                        'But don`t mention the title, author, year of publication, etc. '
-                                        'It cannot be written by the user trying to find it.'
-                                        "BAD EXAMPLE: 'I'm looking for Harry Potter by J.K. Rowling.'\n"
-                                        "GOOD EXAMPLE: 'It's about a young boy who discovers he has magical powers "
-                                        "and attends a special school.'\n"
-                                        "Your response should be like the GOOD EXAMPLE."})
+    messages = [{
+        'role': 'system',
+        'content': (
+            "You are helping a user describe a book they remember vaguely. "
+            "They do not recall the title, author, or any character names. "
+            "Your job is to generate a short description based only on the **idea** of the book, "
+            "as if the user is describing it to a book recommendation system.\n\n"
+            "**Do not** mention the title, author, names of characters, or any specific locations.\n"
+            "The description must sound like: 'It's about a boy who...'\n\n"
+            "Example:\n"
+            "BAD: 'I'm looking for Harry Potter by J.K. Rowling.'\n"
+            "GOOD: 'It's about a young boy who discovers he has magical powers and attends a special school.'"
+            "Please, write the answer without redundant introductory words, just the description."
+        )
+    },
+        {
+            'role': 'user',
+            'content': (
+                "The book I vaguely remember is titled: Tom Sawyer. "
+                "Please help me write a description for a recommendation system, "
+                "without including any names, titles, or specific details."
+                "Please, write the answer without redundant introductory words, just the description."
+            )
+        }]
 
+    print(messages)
     answer = prompt_generator.chat.completions.create(
         model='TinyLlama/TinyLlama-1.1B-Chat-v1.0',
         messages=messages,
-        temperature=0.01
+        temperature=0.9
     )
     # print(tc.data.title[:1])
-    print(answer.choices[0].message.content)
+    # print(answer.choices[0].message.content)
+    print(clean_description(answer.choices[0].message.content))
     # print(answer)
     # generated_prompts = answer
 
@@ -147,5 +186,5 @@ def model_performance(data: pd.DataFrame,
 
 
 if __name__ == '__main__':
-    table = pd.read_csv(r'C:\Users\aleks\OneDrive\Desktop\Studying\your-book-finder\data\raw\gutenberq_books_tiny.csv')
+    table = pd.read_csv(r'...')
     model_performance(table, batch_size=20)
